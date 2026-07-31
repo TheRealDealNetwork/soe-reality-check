@@ -24,10 +24,11 @@ from pathlib import Path
 from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parent
-DATA_DIR = ROOT / "data"
+# Prefer Fly volume mount (/data) when present; else local ./data
+DATA_DIR = Path(os.environ.get("SOE_RC_DATA", str(ROOT / "data")))
 SESSIONS_FILE = DATA_DIR / "sessions.json"
-HOST = "0.0.0.0"
-DEFAULT_PORT = 8080
+HOST = os.environ.get("SOE_RC_HOST", "0.0.0.0")
+DEFAULT_PORT = int(os.environ.get("PORT", os.environ.get("SOE_RC_PORT", "8080")))
 
 _lock = threading.Lock()
 

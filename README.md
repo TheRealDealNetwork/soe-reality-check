@@ -5,14 +5,27 @@ Live group diagnostic for School of Entrepreneurship sessions.
 Participants enter a **Session ID** + **Role**, complete condensed Business Machine practice questions, and see **private** results.  
 The host sees **anonymous Owner vs Manager averages** and gear charts in real time.
 
-## Quick start
+## Live (Fly.io)
+
+| Surface | URL |
+|--------|-----|
+| Home | https://soe-reality-check.fly.dev/ |
+| Participant | https://soe-reality-check.fly.dev/benchmarking-event/TEST-001 |
+| Host | https://soe-reality-check.fly.dev/host/TEST-001 |
+| Host key | `soe-host-2026` |
+
+```bash
+fly deploy
+```
+
+Session data persists on a Fly volume (`/data/sessions.json`).
+
+## Local quick start
 
 ```bash
 cd soe-reality-check
 python3 server.py
 ```
-
-Then open:
 
 | Surface | URL |
 |--------|-----|
@@ -21,7 +34,7 @@ Then open:
 | Host | http://localhost:8080/host/TEST-001 |
 | Host key | `soe-host-2026` |
 
-`server.py` serves the SPA (path routing) and a small JSON API so multiple phones on the same network can share one session.
+`server.py` serves the SPA (path routing) and a small JSON API so multiple phones can share one session.
 
 ## What is included
 
