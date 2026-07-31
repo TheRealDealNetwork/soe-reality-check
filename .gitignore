@@ -1,0 +1,7 @@
+data/sessions.json
+data/sessions.tmp
+.DS_Store
+*.pyc
+__pycache__/
+.idea/
+.vscode/
