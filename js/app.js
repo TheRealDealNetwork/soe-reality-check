@@ -532,7 +532,58 @@ async function renderHost() {
     ...g,
     name: gearName(g.id),
   }));
+  const strongIds = new Set(strongest.map((g) => g.id));
+  const weakIds = new Set(weakest.map((g) => g.id));
+  // Also mark any gear tied with the top/bottom score so "actual" ties show correctly
+  if (strongest[0]) {
+    GEARS.forEach((g) => {
+      if (agg.byGear[g.id] === strongest[0].score) strongIds.add(g.id);
+    });
+  }
+  if (weakest[0]) {
+    GEARS.forEach((g) => {
+      if (agg.byGear[g.id] === weakest[0].score) weakIds.add(g.id);
+    });
+  }
+  // If a gear is both (all equal), prefer neutral; rare
   const band = bandLabel(agg.overall);
+
+  const gearRows = GEARS.map((g) => {
+    const score = agg.byGear[g.id];
+    const hasScore = score !== null && score !== undefined;
+    let rowClass = "gear-score-row";
+    let badge = "";
+    let barClass = "group";
+    if (hasScore && weakIds.has(g.id) && !strongIds.has(g.id)) {
+      rowClass += " is-weak";
+      badge = `<span class="gear-badge badge-weak">Lowest</span>`;
+      barClass = "weak";
+    } else if (hasScore && strongIds.has(g.id) && !weakIds.has(g.id)) {
+      rowClass += " is-strong";
+      badge = `<span class="gear-badge badge-strong">Strongest</span>`;
+      barClass = "strong";
+    } else if (hasScore && strongIds.has(g.id) && weakIds.has(g.id)) {
+      badge = `<span class="gear-badge badge-mid">Tied</span>`;
+    }
+    return `
+      <div class="${rowClass}">
+        <div class="gear-score-meta">
+          <div class="gear-score-name">
+            ${escapeHtml(g.name)}
+            ${badge}
+          </div>
+          <div class="gear-score-num" aria-label="Average score">${hasScore ? score : "—"}</div>
+        </div>
+        <div class="bar-track gear-score-track">
+          ${
+            hasScore
+              ? `<div class="bar-fill ${barClass}" style="width:${score}%"></div>`
+              : `<div class="bar-fill empty">—</div>`
+          }
+        </div>
+        <div class="gear-score-sub muted">Group average · ${hasScore ? `${score} / 100` : "no scores yet"}</div>
+      </div>`;
+  }).join("");
 
   app().innerHTML = shell(
     `
@@ -541,41 +592,41 @@ async function renderHost() {
         <div>
           <p class="eyebrow">Live host view</p>
           <h1>Session ${escapeHtml(sid)}</h1>
-          <p class="lead" style="margin-bottom:0">Anonymous group view. No names on the board.</p>
+          <p class="lead" style="margin-bottom:0">Anonymous group scores by section. No names on the board.</p>
         </div>
         <div class="live-dot">Live · refreshes</div>
       </div>
       <div class="stats-row" style="margin-top:1.1rem">
         <div class="stat"><div class="n">${agg.completed}</div><div class="l">Completed</div></div>
-        <div class="stat"><div class="n">${fmtScore(agg.overall)}</div><div class="l">Group average</div></div>
+        <div class="stat"><div class="n">${fmtScore(agg.overall)}</div><div class="l">Overall group avg</div></div>
         <div class="stat owner"><div class="n">${escapeHtml(band)}</div><div class="l">Group band</div></div>
-        <div class="stat manager"><div class="n">${agg.owners.n + agg.managers.n || agg.completed}</div><div class="l">In the room</div></div>
+        <div class="stat manager"><div class="n">${agg.completed}</div><div class="l">Responses</div></div>
       </div>
     </section>
 
     <section class="card chart-card">
-      <h2>Where the group is strong and weak</h2>
+      <h2>Strongest and lowest sections</h2>
       ${
         agg.completed
           ? `<div class="highlight-row">
         <div class="highlight strong">
-          <div class="tile-label">Common strongest</div>
+          <div class="tile-label">Strongest (highest average)</div>
           <ul class="highlight-list">
             ${strongest
               .map(
                 (g) =>
-                  `<li><strong>${escapeHtml(g.name)}</strong> <span>${g.score}</span></li>`
+                  `<li><strong>${escapeHtml(g.name)}</strong> <span class="score-green">${g.score}</span></li>`
               )
               .join("") || "<li class='muted'>Not enough data yet</li>"}
           </ul>
         </div>
         <div class="highlight weak">
-          <div class="tile-label">Common weakest</div>
+          <div class="tile-label">Lowest (lowest average)</div>
           <ul class="highlight-list">
             ${weakest
               .map(
                 (g) =>
-                  `<li><strong>${escapeHtml(g.name)}</strong> <span>${g.score}</span></li>`
+                  `<li><strong>${escapeHtml(g.name)}</strong> <span class="score-red">${g.score}</span></li>`
               )
               .join("") || "<li class='muted'>Not enough data yet</li>"}
           </ul>
@@ -583,7 +634,12 @@ async function renderHost() {
       </div>
       ${
         weakest[0]
-          ? `<div class="gap-callout">Aim the room conversation here first: <strong>${escapeHtml(weakest[0].name)}</strong> (group avg ${weakest[0].score}). That is the softest gear in the room right now.</div>`
+          ? `<div class="gap-callout callout-weak">Lowest section to discuss first: <strong>${escapeHtml(weakest[0].name)}</strong> — group average <strong class="score-red">${weakest[0].score}</strong> / 100.</div>`
+          : ""
+      }
+      ${
+        strongest[0]
+          ? `<div class="gap-callout callout-strong">Strongest section: <strong>${escapeHtml(strongest[0].name)}</strong> — group average <strong class="score-green">${strongest[0].score}</strong> / 100.</div>`
           : ""
       }`
           : `<p class="muted">Waiting for the first completed Reality Check…</p>`
@@ -591,22 +647,10 @@ async function renderHost() {
     </section>
 
     <section class="card chart-card">
-      <h2>Group gear averages</h2>
-      <p class="muted" style="margin:0 0 0.85rem">One bar per gear. Average of everyone who finished.</p>
-      <div class="bars">
-        ${GEARS.map((g) => {
-          const score = agg.byGear[g.id];
-          const isWeak = weakest.some((w) => w.id === g.id);
-          const isStrong = strongest.some((s) => s.id === g.id);
-          const cls = isWeak ? "manager" : isStrong ? "owner" : "group";
-          return `
-            <div class="bar-row">
-              <div class="bar-label">${escapeHtml(g.name)}</div>
-              <div class="bar-pair">
-                ${barFill(cls, score)}
-              </div>
-            </div>`;
-        }).join("")}
+      <h2>Section averages (everyone who finished)</h2>
+      <p class="muted" style="margin:0 0 1rem">Each score is the <strong>group average</strong> for that segment (0–100). <span class="legend-strong">Green = strongest</span> · <span class="legend-weak">Red = lowest</span>.</p>
+      <div class="gear-score-list">
+        ${gearRows}
       </div>
     </section>
 
