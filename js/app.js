@@ -264,7 +264,7 @@ function renderSeatPick(sid) {
     <section class="card">
       <p class="eyebrow">Step 2 of 3</p>
       <h1>Which seat?</h1>
-      <p class="lead">Optional, but helps the room talk about the right gear. Host still only sees Owner vs Manager averages.</p>
+      <p class="lead">Optional, but helps the room talk about the right gear. Host only sees anonymous group averages.</p>
       <div class="seat-chips" id="seats">
         ${MANAGER_SEATS.map(
           (s) =>
