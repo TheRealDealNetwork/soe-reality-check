@@ -124,33 +124,56 @@ export function aggregate(session) {
   const responses = (session && session.responses) || [];
   const completed = responses.filter((r) => r.overall !== null && r.overall !== undefined);
 
-  function groupAvg(roleGroup) {
-    const rows = completed.filter((r) => r.role === roleGroup);
-    if (!rows.length) return { n: 0, overall: null, byGear: {} };
-    const overall =
-      Math.round(rows.reduce((s, r) => s + (r.overall || 0), 0) / rows.length) || 0;
-    const byGear = {};
-    const gears = new Set();
-    rows.forEach((r) => Object.keys(r.byGear || {}).forEach((g) => gears.add(g)));
-    for (const g of gears) {
-      const vals = rows
-        .map((r) => (r.byGear || {})[g])
-        .filter((v) => v !== null && v !== undefined);
-      byGear[g] = vals.length
-        ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
-        : null;
-    }
-    return { n: rows.length, overall, byGear };
+  if (!completed.length) {
+    return {
+      total: responses.length,
+      completed: 0,
+      overall: null,
+      byGear: {},
+      rankedGears: [],
+      strongest: [],
+      weakest: [],
+      owners: { n: 0 },
+      managers: { n: 0 },
+      responses: [],
+    };
   }
 
-  const owners = groupAvg("owner");
-  const managers = groupAvg("manager");
+  const overall = Math.round(
+    completed.reduce((s, r) => s + (r.overall || 0), 0) / completed.length
+  );
+
+  const gearIds = new Set();
+  completed.forEach((r) => Object.keys(r.byGear || {}).forEach((g) => gearIds.add(g)));
+
+  const byGear = {};
+  for (const g of gearIds) {
+    const vals = completed
+      .map((r) => (r.byGear || {})[g])
+      .filter((v) => v !== null && v !== undefined);
+    byGear[g] = vals.length
+      ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length)
+      : null;
+  }
+
+  const rankedGears = Object.entries(byGear)
+    .filter(([, score]) => score !== null && score !== undefined)
+    .map(([id, score]) => ({ id, score }))
+    .sort((a, b) => b.score - a.score);
+
+  const strongest = rankedGears.slice(0, 2);
+  const weakest = [...rankedGears].sort((a, b) => a.score - b.score).slice(0, 2);
 
   return {
     total: responses.length,
     completed: completed.length,
-    owners,
-    managers,
+    overall,
+    byGear,
+    rankedGears,
+    strongest,
+    weakest,
+    owners: { n: completed.filter((r) => r.role === "owner").length },
+    managers: { n: completed.filter((r) => r.role === "manager").length },
     responses: completed,
   };
 }

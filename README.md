@@ -3,7 +3,7 @@
 Live group diagnostic for School of Entrepreneurship sessions.
 
 Participants enter a **Session ID** + **Role**, complete condensed Business Machine practice questions, and see **private** results.  
-The host sees **anonymous Owner vs Manager averages** and gear charts in real time.
+The host sees the **anonymous group average**, strongest and weakest gears, and live gear charts.
 
 ## Live (Fly.io)
 
@@ -43,7 +43,7 @@ python3 server.py
 - 8 gears × 2 practice questions (condensed from the Owner Audit instrument)
 - Scale: Yes · Sometimes · Not yet / Not really · Not sure
 - Private participant score + per-gear bars
-- Host dashboard: counts, Owner/Manager averages, gap callout, live refresh
+- Host dashboard: group average, common strongest/weakest gears, live refresh
 - Host key gate (`soe-host-2026`)
 - Session store: `data/sessions.json` (API) with localStorage fallback
 

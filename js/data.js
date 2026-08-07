@@ -1,6 +1,6 @@
 /**
  * SOE Business Machine Reality Check — condensed practice instrument.
- * Live group diagnostic: short questions, Owner vs Manager charts.
+ * Live group diagnostic: short questions, group gear averages for host.
  * Voice: ~5th grade. No em dashes. Answer from real life this week.
  */
 

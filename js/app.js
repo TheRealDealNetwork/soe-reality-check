@@ -147,7 +147,7 @@ function renderHome() {
       <h1>Business Machine Reality Check</h1>
       <p class="lead">
         Enter your session code from the room. Answer short practice questions.
-        You see your private score. The host sees anonymous Owner vs Manager averages.
+        You see your private score. The host sees the group average and strongest and weakest gears.
       </p>
       <div class="field">
         <label for="session-id">Session ID</label>
@@ -523,7 +523,16 @@ async function renderHost() {
 
   const origin = location.origin;
   const joinUrl = `${origin}/benchmarking-event/${encodeURIComponent(sid)}`;
-  const gap = biggestGap(agg);
+  const gearName = (id) => GEARS.find((g) => g.id === id)?.name || id;
+  const strongest = (agg.strongest || []).map((g) => ({
+    ...g,
+    name: gearName(g.id),
+  }));
+  const weakest = (agg.weakest || []).map((g) => ({
+    ...g,
+    name: gearName(g.id),
+  }));
+  const band = bandLabel(agg.overall);
 
   app().innerHTML = shell(
     `
@@ -532,43 +541,73 @@ async function renderHost() {
         <div>
           <p class="eyebrow">Live host view</p>
           <h1>Session ${escapeHtml(sid)}</h1>
-          <p class="lead" style="margin-bottom:0">Anonymous Owner vs Manager averages. No names on the board.</p>
+          <p class="lead" style="margin-bottom:0">Anonymous group view. No names on the board.</p>
         </div>
         <div class="live-dot">Live · refreshes</div>
       </div>
       <div class="stats-row" style="margin-top:1.1rem">
         <div class="stat"><div class="n">${agg.completed}</div><div class="l">Completed</div></div>
-        <div class="stat owner"><div class="n">${agg.owners.n}</div><div class="l">Owners</div></div>
-        <div class="stat manager"><div class="n">${agg.managers.n}</div><div class="l">Managers</div></div>
-        <div class="stat"><div class="n">${fmtScore(agg.owners.overall)} / ${fmtScore(agg.managers.overall)}</div><div class="l">Owner / Manager avg</div></div>
+        <div class="stat"><div class="n">${fmtScore(agg.overall)}</div><div class="l">Group average</div></div>
+        <div class="stat owner"><div class="n">${escapeHtml(band)}</div><div class="l">Group band</div></div>
+        <div class="stat manager"><div class="n">${agg.owners.n + agg.managers.n || agg.completed}</div><div class="l">In the room</div></div>
       </div>
     </section>
 
     <section class="card chart-card">
-      <h2>Gear averages</h2>
-      <div class="chart-legend">
-        <span class="lg-owner">Owners (n=${agg.owners.n})</span>
-        <span class="lg-manager">Managers (n=${agg.managers.n})</span>
+      <h2>Where the group is strong and weak</h2>
+      ${
+        agg.completed
+          ? `<div class="highlight-row">
+        <div class="highlight strong">
+          <div class="tile-label">Common strongest</div>
+          <ul class="highlight-list">
+            ${strongest
+              .map(
+                (g) =>
+                  `<li><strong>${escapeHtml(g.name)}</strong> <span>${g.score}</span></li>`
+              )
+              .join("") || "<li class='muted'>Not enough data yet</li>"}
+          </ul>
+        </div>
+        <div class="highlight weak">
+          <div class="tile-label">Common weakest</div>
+          <ul class="highlight-list">
+            ${weakest
+              .map(
+                (g) =>
+                  `<li><strong>${escapeHtml(g.name)}</strong> <span>${g.score}</span></li>`
+              )
+              .join("") || "<li class='muted'>Not enough data yet</li>"}
+          </ul>
+        </div>
       </div>
+      ${
+        weakest[0]
+          ? `<div class="gap-callout">Aim the room conversation here first: <strong>${escapeHtml(weakest[0].name)}</strong> (group avg ${weakest[0].score}). That is the softest gear in the room right now.</div>`
+          : ""
+      }`
+          : `<p class="muted">Waiting for the first completed Reality Check…</p>`
+      }
+    </section>
+
+    <section class="card chart-card">
+      <h2>Group gear averages</h2>
+      <p class="muted" style="margin:0 0 0.85rem">One bar per gear. Average of everyone who finished.</p>
       <div class="bars">
         ${GEARS.map((g) => {
-          const o = agg.owners.byGear[g.id];
-          const m = agg.managers.byGear[g.id];
+          const score = agg.byGear[g.id];
+          const isWeak = weakest.some((w) => w.id === g.id);
+          const isStrong = strongest.some((s) => s.id === g.id);
+          const cls = isWeak ? "manager" : isStrong ? "owner" : "group";
           return `
             <div class="bar-row">
               <div class="bar-label">${escapeHtml(g.name)}</div>
               <div class="bar-pair">
-                ${barFill("owner", o)}
-                ${barFill("manager", m)}
+                ${barFill(cls, score)}
               </div>
             </div>`;
         }).join("")}
       </div>
-      ${
-        gap
-          ? `<div class="gap-callout">Biggest gap: <strong>${escapeHtml(gap.name)}</strong> — Owners ${fmtScore(gap.o)} vs Managers ${fmtScore(gap.m)} (Δ ${gap.delta}). Worth a room conversation.</div>`
-          : `<p class="muted" style="margin:1rem 0 0">Need at least one owner and one manager complete to compare gaps.</p>`
-      }
     </section>
 
     <section class="card">
@@ -624,19 +663,15 @@ async function renderHostQuiet(sid) {
     if (
       prev &&
       prev.completed === agg.completed &&
-      prev.owners.n === agg.owners.n &&
-      prev.managers.n === agg.managers.n &&
-      JSON.stringify(prev.owners.overall) === JSON.stringify(agg.owners.overall) &&
-      JSON.stringify(prev.managers.overall) === JSON.stringify(agg.managers.overall)
+      prev.overall === agg.overall &&
+      JSON.stringify(prev.byGear) === JSON.stringify(agg.byGear)
     ) {
       return;
     }
-    // Soft-update stats without remounting the whole host shell (keeps focus/scroll)
     state.hostSession = session;
     state.hostAgg = agg;
     const root = app();
     if (!root || !isHostAuthed(sid)) return;
-    // Full re-render is fine and simpler for chart updates
     if (state.pollTimer) {
       clearInterval(state.pollTimer);
       state.pollTimer = null;
@@ -656,21 +691,6 @@ function barFill(cls, val) {
 
 function fmtScore(v) {
   return v === null || v === undefined ? "—" : String(v);
-}
-
-function biggestGap(agg) {
-  if (!agg.owners.n || !agg.managers.n) return null;
-  let best = null;
-  for (const g of GEARS) {
-    const o = agg.owners.byGear[g.id];
-    const m = agg.managers.byGear[g.id];
-    if (o == null || m == null) continue;
-    const delta = Math.abs(o - m);
-    if (!best || delta > best.delta) {
-      best = { name: g.name, o, m, delta };
-    }
-  }
-  return best;
 }
 
 function wireNav() {
